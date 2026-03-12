@@ -2,33 +2,15 @@ package com.simats.gym_fitzone.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,29 +18,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-data class Gym(
-    val id: String,
-    val name: String,
-    val location: String,
-    val address: String
-)
+import com.simats.gym_fitzone.models.Gym
+import com.simats.gym_fitzone.viewmodel.GymViewModel
+import com.simats.gym_fitzone.viewmodel.ApiAuthViewModel
+import com.simats.gym_fitzone.viewmodel.ApiAuthState
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+import com.simats.gym_fitzone.utils.GymPreferencesManager
 
 @Composable
-fun GymSelectionScreen(onGymSelected: (gym: Gym) -> Unit) {
+fun GymSelectionScreen(
+    gymViewModel: GymViewModel,
+    apiAuthViewModel: ApiAuthViewModel,
+    userId: Int,
+    onGymSelected: (gym: Gym) -> Unit
+) {
     var searchQuery by remember { mutableStateOf("") }
     var memberId by remember { mutableStateOf("") }
     var selectedGym by remember { mutableStateOf<Gym?>(null) }
+    val context = LocalContext.current
+    val gyms by gymViewModel.availableGyms.collectAsState()
+    val isLoading by gymViewModel.isGymLoading.collectAsState()
+    val authState by apiAuthViewModel.authState.collectAsState()
 
-    val gyms = listOf(
-        Gym("GYM001", "FitZone Premium Mumbai", "Andheri West, Mumbai", "Andheri West, Mumbai"),
-        Gym("GYM002", "PowerFit Bangalore", "Koramangala, Bangalore", "Koramangala, Bangalore"),
-        Gym("GYM003", "Elite Fitness Delhi", "Connaught Place, Delhi", "Connaught Place, Delhi"),
-        Gym("GYM004", "FitHub Chennai", "T. Nagar, Chennai", "T. Nagar, Chennai")
-    )
+    LaunchedEffect(Unit) {
+        gymViewModel.fetchAvailableGyms()
+    }
 
     val filteredGyms = gyms.filter { gym ->
-        gym.name.contains(searchQuery, ignoreCase = true) ||
+        gym.gym_name.contains(searchQuery, ignoreCase = true) ||
+        gym.city.contains(searchQuery, ignoreCase = true) ||
         gym.location.contains(searchQuery, ignoreCase = true)
     }
 
@@ -146,6 +135,26 @@ fun GymSelectionScreen(onGymSelected: (gym: Gym) -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
         }
 
+        if (isLoading) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF1BB85B))
+                }
+            }
+        } else if (filteredGyms.isEmpty() && searchQuery.isNotEmpty()) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(text = "No gyms found matching '$searchQuery'", color = Color.Gray)
+                }
+            }
+        } else if (gyms.isEmpty() && !isLoading) {
+            item {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(text = "No registered gyms available in the database.", color = Color.Gray)
+                }
+            }
+        }
+
         // Available Gyms
         item {
             Text(
@@ -160,9 +169,9 @@ fun GymSelectionScreen(onGymSelected: (gym: Gym) -> Unit) {
 
         items(filteredGyms.size) { index ->
             val gym = filteredGyms[index]
-            GymCard(
+            NewGymCard(
                 gym = gym,
-                isSelected = selectedGym?.id == gym.id,
+                isSelected = selectedGym?.gym_id == gym.gym_id,
                 onSelect = { selectedGym = gym }
             )
 
@@ -223,7 +232,23 @@ fun GymSelectionScreen(onGymSelected: (gym: Gym) -> Unit) {
         item {
             Button(
                 onClick = {
-                    selectedGym?.let { onGymSelected(it) }
+                    selectedGym?.let { gym ->
+                        apiAuthViewModel.verifyMember(userId, gym.gym_id, memberId) { success, response ->
+                            if (success && response != null) {
+                                // Save gym selection using server-returned data for consistency
+                                GymPreferencesManager.saveGymSelection(
+                                    context = context,
+                                    gymId = gym.gym_id,
+                                    gymName = response.gym_name ?: gym.gym_name,
+                                    memberId = memberId,
+                                    gymLocation = response.gym_location ?: ""
+                                )
+                                onGymSelected(gym)
+                            } else {
+                                // Optionally handle error
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -233,14 +258,18 @@ fun GymSelectionScreen(onGymSelected: (gym: Gym) -> Unit) {
                     containerColor = Color(0xFF1BB85B),
                     disabledContainerColor = Color(0xFFCCCCCC)
                 ),
-                enabled = isFormValid
+                enabled = isFormValid && authState !is ApiAuthState.Loading
             ) {
-                Text(
-                    text = "Verify & Continue",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                if (authState is ApiAuthState.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text(
+                        text = "Verify & Continue",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -249,7 +278,7 @@ fun GymSelectionScreen(onGymSelected: (gym: Gym) -> Unit) {
 }
 
 @Composable
-fun GymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
+fun NewGymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -268,7 +297,7 @@ fun GymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = gym.name,
+                        text = gym.gym_name,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -287,7 +316,7 @@ fun GymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
                             modifier = Modifier.height(16.dp)
                         )
                         Text(
-                            text = gym.location,
+                            text = "${gym.location}, ${gym.city}",
                             fontSize = 12.sp,
                             color = Color(0xFF666666)
                         )
@@ -296,7 +325,7 @@ fun GymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Gym ID: ${gym.id}",
+                        text = "Gym Code: ${gym.gym_code}",
                         fontSize = 12.sp,
                         color = Color(0xFFAAAAAA)
                     )
@@ -305,7 +334,7 @@ fun GymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
                 if (isSelected) {
                     Box(
                         modifier = Modifier
-                            .background(Color(0xFF1BB85B), shape = RoundedCornerShape(50.dp))
+                            .background(Color(0xFF1BB85B), shape = androidx.compose.foundation.shape.CircleShape)
                             .padding(4.dp)
                     ) {
                         Text(
@@ -320,4 +349,3 @@ fun GymCard(gym: Gym, isSelected: Boolean, onSelect: () -> Unit) {
         }
     }
 }
-

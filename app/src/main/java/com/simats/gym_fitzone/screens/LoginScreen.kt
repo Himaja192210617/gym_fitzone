@@ -1,5 +1,6 @@
 package com.simats.gym_fitzone.screens
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,11 +20,13 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,16 +34,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.simats.gym_fitzone.models.LoginResponse
+import com.simats.gym_fitzone.viewmodel.ApiAuthViewModel
+import com.simats.gym_fitzone.api.RetrofitClient
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit, onForgotPasswordClick: () -> Unit) {
+fun LoginScreen(
+    apiAuthViewModel: ApiAuthViewModel,
+    onLoginSuccess: (LoginResponse) -> Unit,
+    onRegisterClick: () -> Unit,
+    onForgotPasswordClick: () -> Unit
+) {
     var emailOrMobile by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val authState by apiAuthViewModel.authState.collectAsState()
 
     Box(
         modifier = Modifier
@@ -211,26 +225,44 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit, onForgo
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            if (authState is com.simats.gym_fitzone.viewmodel.ApiAuthState.Error) {
+                Text(
+                    text = (authState as com.simats.gym_fitzone.viewmodel.ApiAuthState.Error).message,
+                    color = Color.Red,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
             // Login Button
             Button(
-                onClick = { onLoginSuccess() },
+                onClick = {
+                    apiAuthViewModel.loginUser(emailOrMobile, password) { success, response ->
+                        if (success && response != null) {
+                            onLoginSuccess(response)
+                        }
+                    }
+                },
+                enabled = authState !is com.simats.gym_fitzone.viewmodel.ApiAuthState.Loading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
                     .padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1BB85B),
-                    disabledContainerColor = Color(0xFFCCCCCC)
-                ),
-                enabled = emailOrMobile.isNotEmpty() && password.isNotEmpty()
-            ) {
-                Text(
-                    text = "Login",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    containerColor = Color(0xFF1BB85B)
                 )
+            ) {
+                if (authState is com.simats.gym_fitzone.viewmodel.ApiAuthState.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text(
+                        text = "Login",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -254,7 +286,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onRegisterClick: () -> Unit, onForgo
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Backend Connection Status (Smooth Running Indicator)
+            Text(
+                text = "Connected to Server: ${RetrofitClient.currentUrl}",
+                fontSize = 10.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
         }
     }
 }
-

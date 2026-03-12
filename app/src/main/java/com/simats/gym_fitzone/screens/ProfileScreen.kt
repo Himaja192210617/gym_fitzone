@@ -22,11 +22,22 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun ProfileScreen(
+    userName: String = "User",
+    userEmail: String = "",
+    userMobile: String = "",
+    userAge: String = "",
+    userGender: String = "",
+    gymName: String = "",
+    gymLocation: String = "",
+    memberId: String = "",
+    totalBookings: String = "0",
+    activeBookings: String = "0",
     onNavigateToHome: () -> Unit = {},
     onNavigateToBook: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
     onNavigateToBMI: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
+    onNavigateToEditProfile: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     Scaffold(
@@ -85,16 +96,26 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Profile Details
-                ProfileDetailsCard()
+                ProfileDetailsCard(
+                    userName = userName,
+                    userEmail = userEmail,
+                    userMobile = userMobile,
+                    userAge = userAge,
+                    userGender = userGender
+                )
 
                 // Gym Membership
-                GymMembershipCard()
+                GymMembershipCard(
+                    gymName = gymName,
+                    gymLocation = gymLocation,
+                    memberId = memberId
+                )
 
                 // Your Stats
-                StatsCard()
+                StatsCard(totalBookings, activeBookings)
 
                 // Actions
-                ActionsCard(onLogout)
+                ActionsCard(onLogout, onNavigateToEditProfile)
 
                 // Footer
                 Footer()
@@ -104,7 +125,13 @@ fun ProfileScreen(
 }
 
 @Composable
-fun ProfileDetailsCard() {
+fun ProfileDetailsCard(
+    userName: String,
+    userEmail: String,
+    userMobile: String,
+    userAge: String,
+    userGender: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -114,26 +141,28 @@ fun ProfileDetailsCard() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color(0xFF1BB85B), shape = CircleShape, modifier = Modifier.size(50.dp)) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Text("R", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (userName.isNotEmpty()) userName.take(1).uppercase() else "U",
+                            fontSize = 24.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Rajesh Kumar", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(userName, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(8.dp)) {
                         Text("Member", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 12.sp, color = Color(0xFF2E7D32))
                     }
                 }
-                IconButton(onClick = { /* TODO */ }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = Color.Gray)
-                }
             }
             Spacer(modifier = Modifier.height(20.dp))
-            ProfileInfoRow(icon = Icons.Default.Email, text = "rajesh@example.com")
+            ProfileInfoRow(icon = Icons.Default.Email, text = userEmail.ifEmpty { "N/A" })
             Spacer(modifier = Modifier.height(12.dp))
-            ProfileInfoRow(icon = Icons.Default.Phone, text = "9876543210")
+            ProfileInfoRow(icon = Icons.Default.Phone, text = userMobile.ifEmpty { "N/A" })
             Spacer(modifier = Modifier.height(12.dp))
-            ProfileInfoRow(icon = Icons.Default.Person, text = "28 years • Male")
+            ProfileInfoRow(icon = Icons.Default.Person, text = "${userAge.ifEmpty { "N/A" }} years • ${userGender.ifEmpty { "N/A" }}")
         }
     }
 }
@@ -148,7 +177,11 @@ fun ProfileInfoRow(icon: ImageVector, text: String) {
 }
 
 @Composable
-fun GymMembershipCard() {
+fun GymMembershipCard(
+    gymName: String,
+    gymLocation: String,
+    memberId: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -163,8 +196,8 @@ fun GymMembershipCard() {
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text("FitZone Premium Mumbai", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("Andheri West, Mumbai", fontSize = 12.sp, color = Color.Gray)
+                    Text(gymName.ifEmpty { "No Gym Selected" }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(gymLocation.ifEmpty { "N/A" }, fontSize = 12.sp, color = Color.Gray)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -172,19 +205,14 @@ fun GymMembershipCard() {
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Member ID", color = Color.Gray)
-                Text("MEM001", fontWeight = FontWeight.Bold)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Gym ID", color = Color.Gray)
-                Text("GYM001", fontWeight = FontWeight.Bold)
+                Text(memberId.ifEmpty { "N/A" }, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-fun StatsCard() {
+fun StatsCard(total: String, active: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -194,8 +222,8 @@ fun StatsCard() {
             Text("Your Stats", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                StatItem(Modifier.weight(1f), Icons.Default.CalendarToday, "0", "Total Bookings", Color(0xFFE3F2FD), Color(0xFF1976D2))
-                StatItem(Modifier.weight(1f), Icons.Default.CheckCircle, "0", "Active Bookings", Color(0xFFE8F5E9), Color(0xFF2E7D32))
+                StatItem(Modifier.weight(1f), Icons.Default.CalendarToday, total, "Total Bookings", Color(0xFFE3F2FD), Color(0xFF1976D2))
+                StatItem(Modifier.weight(1f), Icons.Default.CheckCircle, active, "Active Bookings", Color(0xFFE8F5E9), Color(0xFF2E7D32))
             }
         }
     }
@@ -206,21 +234,27 @@ fun StatItem(modifier: Modifier, icon: ImageVector, value: String, label: String
     Surface(modifier = modifier, color = bgColor, shape = RoundedCornerShape(8.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 16.dp)) {
             Icon(icon, contentDescription = null, tint = textColor)
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textColor)
+            Text(
+                text = value,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = textColor,
+                textAlign = TextAlign.Center
+            )
             Text(label, fontSize = 12.sp, color = textColor)
         }
     }
 }
 
 @Composable
-fun ActionsCard(onLogout: () -> Unit) {
+fun ActionsCard(onLogout: () -> Unit, onEditProfile: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            ActionItem(icon = Icons.Default.Edit, text = "Edit Profile", onClick = { /* TODO */ })
+            ActionItem(icon = Icons.Default.Edit, text = "Edit Profile", onClick = onEditProfile)
             Divider()
             ActionItem(icon = Icons.Default.LocationOn, text = "Change Gym", onClick = { /* TODO */ })
             Divider()

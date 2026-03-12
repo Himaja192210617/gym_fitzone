@@ -43,14 +43,26 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.simats.gym_fitzone.database.User
+import com.simats.gym_fitzone.viewmodel.AuthViewModel
+import com.simats.gym_fitzone.viewmodel.ApiAuthViewModel
+import com.simats.gym_fitzone.viewmodel.AuthState
+import com.simats.gym_fitzone.models.RegisterRequest
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun RegisterScreen(
-    onRegisterSuccess: () -> Unit,
-    onBackToLogin: () -> Unit,
-    onGymUserSelected: () -> Unit = {},
-    onGymAdminSelected: () -> Unit = {}
+    apiAuthViewModel: ApiAuthViewModel,
+    onRegisterSuccess: (com.simats.gym_fitzone.models.RegisterResponse) -> Unit,
+    onBackToLogin: () -> Unit
 ) {
+    val authState by apiAuthViewModel.authState.collectAsState()
+    val context = LocalContext.current
+
     var fullName by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
@@ -585,17 +597,45 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
+        if (authState is com.simats.gym_fitzone.viewmodel.ApiAuthState.Error) {
+            item {
+                Text(
+                    text = (authState as com.simats.gym_fitzone.viewmodel.ApiAuthState.Error).message,
+                    color = Color.Red,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        }
+
         // Register Button
         item {
             Button(
                 onClick = {
-                    // Different navigation based on role
-                    if (role == "Gym User") {
-                        onGymUserSelected()  // Go to Gym Selection
-                    } else if (role == "Gym Administrator") {
-                        onGymAdminSelected()  // Go to Gym Setup
-                    } else {
-                        onRegisterSuccess()  // Default flow
+                    // Convert age to Int
+                    val ageInt = age.toIntOrNull() ?: 0
+                    
+                    val apiRole = when(role) {
+                        "Gym Administrator" -> "gym_administrator"
+                        "Gym User" -> "gym_user"
+                        else -> "gym_user"
+                    }
+                    
+                    apiAuthViewModel.registerUser(
+                        name = fullName,
+                        age = ageInt,
+                        gender = gender,
+                        email = email,
+                        mobile = mobileNumber,
+                        password = password,
+                        role = apiRole
+                    ) { success, response ->
+                        if (success && response != null) {
+                            Toast.makeText(context, "Registration successful!", Toast.LENGTH_SHORT).show()
+                            onRegisterSuccess(response)
+                        } else {
+                            Toast.makeText(context, "Registration failed. Please try again.", Toast.LENGTH_LONG).show()
+                        }
                     }
                 },
                 modifier = Modifier
@@ -607,14 +647,18 @@ fun RegisterScreen(
                     containerColor = Color(0xFF1BB85B),
                     disabledContainerColor = Color(0xFFCCCCCC)
                 ),
-                enabled = isFormValid
+                enabled = isFormValid && authState !is com.simats.gym_fitzone.viewmodel.ApiAuthState.Loading
             ) {
-                Text(
-                    text = "Register",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                if (authState is com.simats.gym_fitzone.viewmodel.ApiAuthState.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text(
+                        text = "Register",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
 
@@ -623,4 +667,3 @@ fun RegisterScreen(
         }
     }
 }
-

@@ -37,9 +37,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import com.simats.gym_fitzone.viewmodel.ApiAuthViewModel
+import com.simats.gym_fitzone.viewmodel.ApiAuthState
+import androidx.compose.runtime.collectAsState
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+
 @Composable
-fun ForgotPasswordScreen(onBackToLogin: () -> Unit, onSendResetLink: (email: String) -> Unit) {
+fun ForgotPasswordScreen(
+    apiAuthViewModel: ApiAuthViewModel,
+    onBackToLogin: () -> Unit,
+    onSendOTP: (email: String) -> Unit
+) {
     var email by remember { mutableStateOf("") }
+    val authState by apiAuthViewModel.authState.collectAsState()
+    val context = LocalContext.current
 
     Box(
         modifier = Modifier
@@ -82,7 +94,7 @@ fun ForgotPasswordScreen(onBackToLogin: () -> Unit, onSendResetLink: (email: Str
 
             // Description
             Text(
-                text = "Enter your email to receive a password reset link",
+                text = "Enter your email to receive an OTP",
                 fontSize = 14.sp,
                 color = Color(0xFF999999),
                 textAlign = TextAlign.Center,
@@ -142,11 +154,26 @@ fun ForgotPasswordScreen(onBackToLogin: () -> Unit, onSendResetLink: (email: Str
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Send Reset Link Button
+            // Display Error Message
+            if (authState is ApiAuthState.Error) {
+                Text(
+                    text = (authState as ApiAuthState.Error).message,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            // Send OTP Button
             Button(
                 onClick = {
                     if (email.isNotEmpty()) {
-                        onSendResetLink(email)
+                        apiAuthViewModel.forgotPassword(email) { success, _ ->
+                            if (success) {
+                                Toast.makeText(context, "OTP Sent Successfully!", Toast.LENGTH_SHORT).show()
+                                onSendOTP(email)
+                            }
+                        }
                     }
                 },
                 modifier = Modifier
@@ -158,14 +185,21 @@ fun ForgotPasswordScreen(onBackToLogin: () -> Unit, onSendResetLink: (email: Str
                     containerColor = Color(0xFF1BB85B),
                     disabledContainerColor = Color(0xFFCCCCCC)
                 ),
-                enabled = email.isNotEmpty()
+                enabled = email.isNotEmpty() && authState !is ApiAuthState.Loading
             ) {
-                Text(
-                    text = "Send Reset Link",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                if (authState is ApiAuthState.Loading) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Send OTP",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -188,4 +222,3 @@ fun ForgotPasswordScreen(onBackToLogin: () -> Unit, onSendResetLink: (email: Str
         }
     }
 }
-

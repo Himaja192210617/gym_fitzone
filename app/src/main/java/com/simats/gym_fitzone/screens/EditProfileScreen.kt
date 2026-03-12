@@ -6,26 +6,31 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
+    currentName: String = "",
+    currentEmail: String = "",
+    currentPhone: String = "",
+    currentAge: String = "",
+    currentGender: String = "",
     onBack: () -> Unit = {},
-    onSave: () -> Unit = {}
+    onSave: (newName: String, newEmail: String, newPhone: String, newAge: String, newGender: String) -> Unit = {_,_,_,_,_ ->}
 ) {
-    var name by remember { mutableStateOf("Rajesh Kumar") }
-    var email by remember { mutableStateOf("rajesh@example.com") }
-    var phone by remember { mutableStateOf("9876543210") }
-    var age by remember { mutableStateOf("28") }
-    var gender by remember { mutableStateOf("Male") }
+    var name by remember { mutableStateOf(currentName) }
+    var email by remember { mutableStateOf(currentEmail) }
+    var phone by remember { mutableStateOf(currentPhone) }
+    var age by remember { mutableStateOf(currentAge) }
+    var gender by remember { mutableStateOf(currentGender) }
 
     Scaffold(
         topBar = {
@@ -33,7 +38,10 @@ fun EditProfileScreen(
                 title = { Text("Edit Profile", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -61,7 +69,7 @@ fun EditProfileScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = onSave,
+                onClick = { onSave(name, email, phone, age, gender) },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1BB85B)),
                 shape = RoundedCornerShape(8.dp)

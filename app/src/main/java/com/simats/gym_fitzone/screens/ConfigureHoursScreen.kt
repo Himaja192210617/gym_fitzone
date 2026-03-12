@@ -21,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -28,6 +29,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,33 +41,43 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.simats.gym_fitzone.models.GymSession
+import com.simats.gym_fitzone.viewmodel.GymViewModel
 import java.util.Locale
 import androidx.compose.material3.ExperimentalMaterial3Api
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConfigureHoursScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
+fun ConfigureHoursScreen(
+    onBackClick: () -> Unit, 
+    onCompleteSetup: () -> Unit,
+    gymViewModel: GymViewModel,
+    gymId: Int
+) {
     var morningOpenTime by remember { mutableStateOf("") }
     var morningCloseTime by remember { mutableStateOf("") }
     var afternoonEnabled by remember { mutableStateOf(false) }
     var afternoonOpenTime by remember { mutableStateOf("") }
     var afternoonCloseTime by remember { mutableStateOf("") }
+    var eveningEnabled by remember { mutableStateOf(false) }
     var eveningOpenTime by remember { mutableStateOf("") }
     var eveningCloseTime by remember { mutableStateOf("") }
-
-    // Time picker dialog states
+    
     var showMorningOpenPicker by remember { mutableStateOf(false) }
     var showMorningClosePicker by remember { mutableStateOf(false) }
     var showAfternoonOpenPicker by remember { mutableStateOf(false) }
     var showAfternoonClosePicker by remember { mutableStateOf(false) }
     var showEveningOpenPicker by remember { mutableStateOf(false) }
     var showEveningClosePicker by remember { mutableStateOf(false) }
-
+    
+    val configureHoursState by gymViewModel.configureHoursState.collectAsState()
+    
     // Helper function to compare times - returns true if closeTime is after openTime
-    val isTimeAfter: (String, String) -> Boolean = { openTime, closeTime ->
+    fun isTimeAfter(openTime: String, closeTime: String): Boolean {
         if (openTime.isEmpty() || closeTime.isEmpty()) {
-            false
+            return false
         } else {
-            try {
+            return try {
                 val openParts = openTime.split(":")
                 val closeParts = closeTime.split(":")
                 val openHour = openParts[0].toIntOrNull() ?: 0
@@ -83,13 +96,85 @@ fun ConfigureHoursScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
         }
     }
 
+    // Handle configuration completion
+    LaunchedEffect(configureHoursState) {
+        when (configureHoursState) {
+            is com.simats.gym_fitzone.viewmodel.ConfigureHoursState.Success -> {
+                onCompleteSetup()
+                gymViewModel.resetConfigureHoursState()
+            }
+            else -> {}
+        }
+    }
+
+    // Function to save hours to backend
+    fun saveHoursToBackend() {
+        val sessions = mutableListOf<GymSession>()
+        
+        // Add morning session
+        if (morningOpenTime.isNotEmpty() && morningCloseTime.isNotEmpty()) {
+            sessions.add(GymSession("morning", morningOpenTime, morningCloseTime))
+        }
+        
+        // Add afternoon session if enabled
+        if (afternoonEnabled && afternoonOpenTime.isNotEmpty() && afternoonCloseTime.isNotEmpty()) {
+            sessions.add(GymSession("afternoon", afternoonOpenTime, afternoonCloseTime))
+        }
+        
+        // Add evening session if enabled
+        if (eveningEnabled && eveningOpenTime.isNotEmpty() && eveningCloseTime.isNotEmpty()) {
+            sessions.add(GymSession("evening", eveningOpenTime, eveningCloseTime))
+        }
+        
+        if (sessions.isNotEmpty()) {
+            gymViewModel.configureHours(gymId, sessions) { success, response ->
+                // Handle result in LaunchedEffect above
+            }
+        }
+    }
+    
+    // Validation function
+    fun validateTimeInputs(): Boolean {
+        // Check morning session (required)
+        if (morningOpenTime.isEmpty() || morningCloseTime.isEmpty()) {
+            return false
+        }
+        
+        // Check if morning close time is after open time
+        if (!isTimeAfter(morningOpenTime, morningCloseTime)) {
+            return false
+        }
+        
+        // Check afternoon session if enabled
+        if (afternoonEnabled) {
+            if (afternoonOpenTime.isEmpty() || afternoonCloseTime.isEmpty()) {
+                return false
+            }
+            if (!isTimeAfter(afternoonOpenTime, afternoonCloseTime)) {
+                return false
+            }
+        }
+        
+        // Check evening session if enabled
+        if (eveningEnabled) {
+            if (eveningOpenTime.isEmpty() || eveningCloseTime.isEmpty()) {
+                return false
+            }
+            if (!isTimeAfter(eveningOpenTime, eveningCloseTime)) {
+                return false
+            }
+        }
+        
+        return true
+    }
+
     // Validation - at least morning session required, times must be valid and closing after opening
     val isFormValid = morningOpenTime.isNotEmpty() && morningCloseTime.isNotEmpty() &&
                      isTimeAfter(morningOpenTime, morningCloseTime) &&
-                     eveningOpenTime.isNotEmpty() && eveningCloseTime.isNotEmpty() &&
-                     isTimeAfter(eveningOpenTime, eveningCloseTime) &&
-                     (!afternoonEnabled || (afternoonOpenTime.isNotEmpty() && afternoonCloseTime.isNotEmpty() &&
-                     isTimeAfter(afternoonOpenTime, afternoonCloseTime)))
+                     (!afternoonEnabled || (afternoonOpenTime.isNotEmpty() && 
+                     afternoonCloseTime.isNotEmpty() && isTimeAfter(afternoonOpenTime, afternoonCloseTime))) &&
+                     (!eveningEnabled || (eveningOpenTime.isNotEmpty() && 
+                     eveningCloseTime.isNotEmpty() && isTimeAfter(eveningOpenTime, eveningCloseTime)))
 
     LazyColumn(
         modifier = Modifier
@@ -660,9 +745,14 @@ fun ConfigureHoursScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
                     )
                 }
 
-                // Complete Setup Button
+                // Upload Data Button
                 Button(
-                    onClick = { onCompleteSetup() },
+                    onClick = { 
+                        if (validateTimeInputs()) {
+                            saveHoursToBackend()
+                        }
+                    },
+                    enabled = configureHoursState !is com.simats.gym_fitzone.viewmodel.ConfigureHoursState.Loading && isFormValid,
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
@@ -670,15 +760,21 @@ fun ConfigureHoursScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF1BB85B),
                         disabledContainerColor = Color(0xFFCCCCCC)
-                    ),
-                    enabled = isFormValid
-                ) {
-                    Text(
-                        text = "Complete Setup",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
                     )
+                ) {
+                    if (configureHoursState is com.simats.gym_fitzone.viewmodel.ConfigureHoursState.Loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            text = "Upload Data",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

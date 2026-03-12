@@ -39,10 +39,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import com.simats.gym_fitzone.viewmodel.GymViewModel
+import com.simats.gym_fitzone.viewmodel.SetCapacityState
 
 @Composable
-fun SetCapacityScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
+fun SetCapacityScreen(
+    gymViewModel: GymViewModel,
+    adminUserId: Int,
+    onBackClick: () -> Unit,
+    onCompleteSetup: () -> Unit
+) {
     var slotCapacity by remember { mutableStateOf("") }
+    val setCapacityState by gymViewModel.setCapacityState.collectAsState()
 
     // Validate that capacity is a positive integer
     val isFormValid = slotCapacity.isNotEmpty() && slotCapacity.toIntOrNull() != null && slotCapacity.toIntOrNull()!! > 0
@@ -585,7 +595,16 @@ fun SetCapacityScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
 
                 // Complete Setup Button
                 Button(
-                    onClick = { onCompleteSetup() },
+                    onClick = {
+                        val capacity = slotCapacity.toIntOrNull() ?: 0
+                        if (capacity > 0) {
+                            gymViewModel.setSlotCapacity(adminUserId, capacity) { success, _ ->
+                                if (success) {
+                                    onCompleteSetup()
+                                }
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
@@ -594,14 +613,18 @@ fun SetCapacityScreen(onBackClick: () -> Unit, onCompleteSetup: () -> Unit) {
                         containerColor = Color(0xFF1BB85B),
                         disabledContainerColor = Color(0xFFCCCCCC)
                     ),
-                    enabled = isFormValid
+                    enabled = isFormValid && setCapacityState !is SetCapacityState.Loading
                 ) {
-                    Text(
-                        text = "Complete Setup",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (setCapacityState is SetCapacityState.Loading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text(
+                            text = "Complete Setup",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

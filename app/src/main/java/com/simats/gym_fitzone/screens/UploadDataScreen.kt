@@ -37,13 +37,74 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.simats.gym_fitzone.viewmodel.GymViewModel
+import com.simats.gym_fitzone.utils.FileUtils
+import com.simats.gym_fitzone.viewmodel.UploadDataState
 
 @Composable
-fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
-    var historicalBookingsFile by remember { mutableStateOf("") }
-    var gymMembersFile by remember { mutableStateOf("") }
+fun UploadDataScreen(
+    onBackClick: () -> Unit, 
+    onCompleteUpload: () -> Unit,
+    gymViewModel: GymViewModel,
+    adminUserId: Int
+) {
+    val context = LocalContext.current
+    var historicalBookingsUri by remember { mutableStateOf<Uri?>(null) }
+    var gymMembersUri by remember { mutableStateOf<Uri?>(null) }
+    
+    val uploadState by gymViewModel.uploadState.collectAsState()
 
-    val isFormValid = historicalBookingsFile.isNotEmpty() && gymMembersFile.isNotEmpty()
+    val historicalLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        historicalBookingsUri = uri
+    }
+
+    val membersLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        gymMembersUri = uri
+    }
+
+    val isFormValid = historicalBookingsUri != null && gymMembersUri != null
+    val isLoading = uploadState is UploadDataState.Loading
+
+    fun handleUpload() {
+        if (historicalBookingsUri == null || gymMembersUri == null) return
+
+        val historicalPart = FileUtils.getMultipartPart(context, historicalBookingsUri!!, "file")
+        val membersPart = FileUtils.getMultipartPart(context, gymMembersUri!!, "file")
+
+        if (historicalPart == null || membersPart == null) {
+            Toast.makeText(context, "Error processing files", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Upload historical data first
+        gymViewModel.uploadHistoricalData(adminUserId, historicalPart) { success, message ->
+            if (success) {
+                // Then upload gym members
+                gymViewModel.uploadGymMembers(adminUserId, membersPart) { successMembers, messageMembers ->
+                    if (successMembers) {
+                        Toast.makeText(context, "Data uploaded successfully", Toast.LENGTH_SHORT).show()
+                        onCompleteUpload()
+                        gymViewModel.resetUploadState()
+                    } else {
+                        Toast.makeText(context, "Members upload failed: $messageMembers", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                Toast.makeText(context, "Historical data upload failed: $message", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -254,7 +315,7 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text("date", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                    Text("timeSlot", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text("slot", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                     Text("bookingCount", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                 }
 
@@ -314,7 +375,7 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                                         .padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("memberid", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                    Text("memberId", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                     Text("name", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                     Text("email", fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                                 }
@@ -394,7 +455,7 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
 
                     // Upload Button
                     Button(
-                        onClick = { historicalBookingsFile = "bookings_data.xlsx" },
+                        onClick = { historicalLauncher.launch("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(100.dp),
@@ -402,7 +463,8 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                             containerColor = Color(0xFFF5F5F5),
                             contentColor = Color(0xFF1BB85B)
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        enabled = !isLoading
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -411,11 +473,18 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                             Text(text = "⬆️", fontSize = 32.sp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (historicalBookingsFile.isEmpty()) "Click to upload Excel file" else "✓ File Selected",
+                                text = if (historicalBookingsUri == null) "Click to upload Excel file" else "✓ File Selected",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (historicalBookingsFile.isEmpty()) Color(0xFF1BB85B) else Color(0xFF1BB85B)
+                                color = Color(0xFF1BB85B)
                             )
+                            if (historicalBookingsUri != null) {
+                                Text(
+                                    text = historicalBookingsUri!!.path?.substringAfterLast("/") ?: "",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            }
                         }
                     }
 
@@ -466,7 +535,7 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
 
                     // Upload Button
                     Button(
-                        onClick = { gymMembersFile = "gym_members.xlsx" },
+                        onClick = { membersLauncher.launch("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(100.dp),
@@ -474,7 +543,8 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                             containerColor = Color(0xFFF5F5F5),
                             contentColor = Color(0xFF1BB85B)
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        enabled = !isLoading
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -483,11 +553,18 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                             Text(text = "⬆️", fontSize = 32.sp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (gymMembersFile.isEmpty()) "Click to upload Excel file" else "✓ File Selected",
+                                text = if (gymMembersUri == null) "Click to upload Excel file" else "✓ File Selected",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (gymMembersFile.isEmpty()) Color(0xFF1BB85B) else Color(0xFF1BB85B)
+                                color = Color(0xFF1BB85B)
                             )
+                            if (gymMembersUri != null) {
+                                Text(
+                                    text = gymMembersUri!!.path?.substringAfterLast("/") ?: "",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            }
                         }
                     }
 
@@ -535,7 +612,7 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
 
                 // Next Button
                 Button(
-                    onClick = { onCompleteUpload() },
+                    onClick = { handleUpload() },
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
@@ -544,14 +621,22 @@ fun UploadDataScreen(onBackClick: () -> Unit, onCompleteUpload: () -> Unit) {
                         containerColor = Color(0xFF1BB85B),
                         disabledContainerColor = Color(0xFFCCCCCC)
                     ),
-                    enabled = isFormValid
+                    enabled = isFormValid && !isLoading
                 ) {
-                    Text(
-                        text = "Next: Set Capacity",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Next: Set Capacity",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

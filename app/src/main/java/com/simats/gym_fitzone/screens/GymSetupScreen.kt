@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
- import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,11 +22,14 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,15 +41,34 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.simats.gym_fitzone.viewmodel.GymViewModel
 
 @Composable
-fun GymSetupScreen(onNextStep: (String, String, String) -> Unit) {
+fun GymSetupScreen(
+    onNextStep: (String, String, String, Int) -> Unit,
+    gymViewModel: GymViewModel,
+    adminUserId: Int
+) {
     var gymName by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    
+    val gymSetupState by gymViewModel.gymSetupState.collectAsState()
+    
+    // Handle gym setup completion
+    LaunchedEffect(gymSetupState) {
+        when (gymSetupState) {
+            is com.simats.gym_fitzone.viewmodel.GymSetupState.Success -> {
+                val state = gymSetupState as com.simats.gym_fitzone.viewmodel.GymSetupState.Success
+                onNextStep(gymName, city, address, state.response.gym_id)
+                gymViewModel.resetGymSetupState()
+            }
+            else -> {}
+        }
+    }
 
     // Validation
     val isFormValid = gymName.isNotEmpty() && address.isNotEmpty() &&
@@ -454,10 +476,25 @@ fun GymSetupScreen(onNextStep: (String, String, String) -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
         }
 
-        // Next Button
+        // Configure Hours Button
         item {
             Button(
-                onClick = { onNextStep(gymName, address, city) },
+                onClick = { 
+                    if (isFormValid) {
+                        gymViewModel.setupGym(
+                            gymName = gymName,
+                            address = address,
+                            city = city,
+                            phone = phoneNumber,
+                            email = email,
+                            description = description,
+                            gymAdminId = adminUserId
+                        ) { success, response ->
+                            // Handle result in LaunchedEffect above
+                        }
+                    }
+                },
+                enabled = isFormValid && gymSetupState !is com.simats.gym_fitzone.viewmodel.GymSetupState.Loading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -465,23 +502,18 @@ fun GymSetupScreen(onNextStep: (String, String, String) -> Unit) {
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF1BB85B),
                     disabledContainerColor = Color(0xFFCCCCCC)
-                ),
-                enabled = isFormValid
+                )
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Next: Configure Hours",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                if (gymSetupState is com.simats.gym_fitzone.viewmodel.GymSetupState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
                     Text(
-                        text = "→",
+                        text = "Configure Hours",
                         fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }

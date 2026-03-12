@@ -22,12 +22,14 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun HomeScreen(
-    gymName: String = "FitZone Premium Mumbai",
+    userName: String = "User",
+    gymName: String = "Select Gym",
     onLogout: () -> Unit = {},
     onNavigateToBook: () -> Unit = {},
     onNavigateToWorkout: () -> Unit = {},
     onNavigateToBMI: () -> Unit = {},
-    onNavigateToHistory: () -> Unit = {}
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -47,7 +49,7 @@ fun HomeScreen(
                     BottomNavItem(icon = Icons.Default.FitnessCenter, label = "Workout", isSelected = false, onClick = onNavigateToWorkout)
                     BottomNavItem(icon = Icons.Default.MonitorHeart, label = "BMI", isSelected = false, onClick = onNavigateToBMI)
                     BottomNavItem(icon = Icons.Default.History, label = "History", isSelected = false, onClick = onNavigateToHistory)
-                    BottomNavItem(icon = Icons.Default.Person, label = "Profile", isSelected = false)
+                    BottomNavItem(icon = Icons.Default.Person, label = "Profile", isSelected = false, onClick = onNavigateToProfile)
                 }
             }
         }
@@ -64,7 +66,7 @@ fun HomeScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column {
                             Text(text = "Welcome back,", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text(text = "Madhuri Pothuluri", fontSize = 18.sp, color = Color.White)
+                            Text(text = userName, fontSize = 18.sp, color = Color.White)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(text = gymName, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Light)
                         }
